@@ -67,20 +67,34 @@ class CreateArgsTest extends DiceTest {
 	public function testTwoDefaultNullClass() {
 		$obj = $this->dice->create('MethodWithTwoDefaultNullC');
         $this->assertNull($obj->a);
-		$this->assertInstanceOf('NB',$obj->b);
+        $this->assertNull($obj->b);
     }
 
     public function testTwoDefaultNullClassClass() {
 		$obj = $this->dice->create('MethodWithTwoDefaultNullCC');
         $this->assertNull($obj->a);
-		$this->assertInstanceOf('NB',$obj->b);
-		$this->assertInstanceOf('NC',$obj->c);
+		$this->assertNull($obj->b);
+		$this->assertNull($obj->c);
     }
 
     public function testScalarConstructorArgs() {
     	$obj = $this->dice->create('ScalarConstructors', ['string', null]);
     	$this->assertEquals('string', $obj->string);
     	$this->assertEquals(null, $obj->null);
+    }
+
+    public function testNullableScalarTypeHint() {
+        $obj = $this->dice->create('NullableScalarTypeHint', ['a', 'b']);
+        $this->assertEquals('a', $obj->a);
+        $this->assertEquals('b', $obj->b);
+
+        $obj = $this->dice->create('NullableScalarTypeHint', ['a', null]);
+        $this->assertEquals('a', $obj->a);
+        $this->assertEquals(null, $obj->b);
+
+        $obj = $this->dice->create('NullableScalarTypeHint', [null, 'b']);
+        $this->assertEquals(null, $obj->a);
+        $this->assertEquals('b', $obj->b);
     }
 
 }

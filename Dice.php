@@ -254,7 +254,7 @@ class Dice {
 				//Find a match in $args for scalar types
 				else if ($args && $param->getType()) {
 					for ($i = 0; $i < count($args); $i++) {
-						if (call_user_func('is_' . $param->getType()->getName(), $args[$i])) {
+						if (call_user_func('is_' . $param->getType()->getName(), $args[$i]) || (is_null($args[$i]) && $param->allowsNull())) {
 							$parameters[] = array_splice($args, $i, 1)[0];
                             break;
 						}
