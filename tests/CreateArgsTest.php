@@ -83,4 +83,18 @@ class CreateArgsTest extends DiceTest {
     	$this->assertEquals(null, $obj->null);
     }
 
+    public function testNullableScalarTypeHint() {
+        $obj = $this->dice->create('NullableScalarTypeHint', ['a', 'b']);
+        $this->assertEquals('a', $obj->a);
+        $this->assertEquals('b', $obj->b);
+
+        $obj = $this->dice->create('NullableScalarTypeHint', ['a', null]);
+        $this->assertEquals('a', $obj->a);
+        $this->assertEquals(null, $obj->b);
+
+        $obj = $this->dice->create('NullableScalarTypeHint', [null, 'b']);
+        $this->assertEquals(null, $obj->a);
+        $this->assertEquals('b', $obj->b);
+    }
+
 }

@@ -156,3 +156,14 @@ class someotherclass {
 	    $this->obj = $obj;
 	}
 }
+
+class NullableScalarTypeHint
+{
+    public $a;
+    public $b;
+
+    public function __construct(?string $a, ?string $b) {
+        $this->a = $a;
+        $this->b = $b;
+    }
+}
