@@ -115,6 +115,15 @@ class Dice
     }
 
     /**
+     * Returns true if a shared instance of $name is available
+     *
+     */
+    public function hasShared(string $name): bool
+    {
+        return !empty($this->instances[$name]);
+    }
+
+    /**
      * Returns a fully constructed object based on $name using $args and $share as constructor arguments if supplied
      *
      * @param string $name The name of the class to instantiate
