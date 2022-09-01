@@ -1,13 +1,23 @@
 <?php
 
-/* @description Dice - A minimal Dependency Injection Container for PHP
+/**
+ * Dice - A minimal Dependency Injection Container for PHP
+ *
  * @author Tom Butler tom@r.je
  * @copyright 2012-2020 Tom Butler <tom@r.je> | https://r.je/dice
  * @license http://www.opensource.org/licenses/bsd-license.php BSD License
- * @version 4.0 */
+ * @version 4.0
+ */
 
 namespace Dice;
 
+/**
+ * A minimal dependency injection container
+ *
+ * Because `Dice` is immutable, methods that change its configuration return a
+ * new object.
+ *
+ */
 class Dice
 {
     const CONSTANT = 'Dice::CONSTANT';
@@ -17,26 +27,50 @@ class Dice
     const SELF = 'Dice::SELF';
 
     /**
-     * @var array $rules Rules which have been set using addRule()
+     * Rule name => rule
+     *
+     * Names are normalised with:
+     *
+     * ```php
+     * ltrim(strtolower($name), '\\')
+     * ```
+     *
+     * @var array<string,array>
+     * @see Dice::addRule()
+     * @see Dice::addRules()
      */
     private $rules = [];
 
     /**
-     * @var array $cache A cache of closures based on class name so each class is only reflected once
+     * Name => instance factory
+     *
+     * Ensures each class is only reflected once.
+     *
+     * @var array<string,\Closure>
      */
     private $cache = [];
 
     /**
-     * @var array $instances Stores any instances marked as 'shared' so create() can return the same instance
+     * Name => shared instance
+     *
+     * For performance reasons, shared instances are added to this array with
+     * **and** without a global namespace prefix.
+     *
+     * @var array<string,object>
      */
     private $instances = [];
 
     /**
-     * Add a rule $rule to the class $name
+     * Add a rule to a class or named instance
      *
-     * @param string $name The name of the class to add the rule for
-     * @param array $rule The container can be fully configured using rules provided by associative arrays. See
-     * {@link https://r.je/dice.html#example3} for a description of the rules.
+     * The container can be fully configured using rules provided by associative
+     * arrays. See {@link https://r.je/dice.html#example3} for a description of
+     * the rules.
+     *
+     * If a shared instance of `$name` has been cached, calling `addRule($name)`
+     * will remove it.
+     *
+     * @return Dice A new instance with `$rule` applied to `$name`.
      */
     public function addRule(string $name, array $rule): self
     {
@@ -46,15 +80,20 @@ class Dice
     }
 
     /**
-     * Add rules as array
+     * Add multiple rules
      *
-     * Useful for JSON loading:
+     * Equivalent to calling {@see Dice::addRule()} for each `$name => $rule`
+     * pair in `$rules`.
+     *
+     * Example:
      *
      * ```php
-     * $dice->addRules(json_decode(file_get_contents('foo.json'));
+     * $dice = $dice->addRules(json_decode(file_get_contents('rules.json')));
      * ```
      *
-     * @param array Rules in a single array [name => $rule] format
+     * @param array<string,array>|string $rules An array of rules (`[$name =>
+     * $rule, ...]`) or a JSON string.
+     * @return Dice A new instance with `$rules` applied.
      */
     public function addRules($rules): self
     {
@@ -68,50 +107,101 @@ class Dice
         return $dice;
     }
 
+    /**
+     * Provide a shared instance for a class or named instance
+     *
+     * @return Dice A new instance of `Dice` that resolves `$name` to
+     * `$instance`.
+     */
+    public function addShared(string $name, object $instance): self
+    {
+        $_name = ltrim($name, '\\');
+        $dice  = $this->removeRule($name);
+        $dice->instances[$_name] = $dice->instances['\\' . $_name] = $instance;
+        return $dice;
+    }
+
     private function addRuleTo(Dice $dice, string $name, array $rule)
     {
         if (isset($rule['instanceOf']) && (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)) {
             $rule = array_replace_recursive($dice->getRule($rule['instanceOf']), $rule);
         }
-        // Allow substitutions rules to be defined with a leading a slash
+        // Allow substitutions to be defined with a leading a slash
         if (isset($rule['substitutions'])) {
             foreach ($rule['substitutions'] as $key => $value) {
                 $rule['substitutions'][ltrim($key, '\\')] = $value;
             }
         }
-        // Clear any existing instance or cache for this class
-        unset($dice->instances[$name], $dice->cache[$name]);
+        // Clear any existing closures or instances for this class
+        $this->flush($dice, $name);
         $dice->rules[ltrim(strtolower($name), '\\')] = array_replace_recursive($dice->getRule($name), $rule);
     }
 
+    private function flush(Dice $dice, string $name)
+    {
+        $_name = ltrim($name, '\\');
+        unset($dice->instances[$_name], $dice->instances['\\' . $_name], $dice->cache[$name]);
+    }
+
     /**
-     * Returns the rule that will be applied to the class $name when calling create()
+     * If a rule has been added to the given class or named instance, remove it
      *
-     * @param string name The name of the class to get the rules for
-     * @return array The rules for the specified class
+     * Any shared instances of `$name` will also be removed.
+     */
+    public function removeRule(string $name): self
+    {
+        $dice = clone $this;
+        unset($dice->rules[ltrim(strtolower($name), '\\')]);
+        $this->flush($dice, $name);
+        return $dice;
+    }
+
+    /**
+     * Returns true if a rule has been added to the class $name
+     *
+     */
+    public function hasRule(string $name): bool
+    {
+        return isset($this->rules[ltrim(strtolower($name), '\\')]);
+    }
+
+    /**
+     * Returns the default rule
+     *
+     * If no default rule has been set, an empty array will be returned.
+     */
+    public function getDefaultRule(): array
+    {
+        return isset($this->rules['*']) ? $this->rules['*'] : [];
+    }
+
+    /**
+     * Returns the rule applied to the given class or named instance
+     *
      */
     public function getRule(string $name): array
     {
-        $lcName = strtolower(ltrim($name, '\\'));
-        if (isset($this->rules[$lcName])) {
-            return $this->rules[$lcName];
+        $_name = ltrim(strtolower($name), '\\');
+        if (isset($this->rules[$_name])) {
+            return $this->rules[$_name];
         }
         foreach ($this->rules as $key => $rule) {
-            // Find a rule which matches the class described in $name where:
+            // Find a fallback rule for $name where:
             // - It's not a named instance, the rule is applied to a class name
             // - It's not the default rule
             // - The rule is applied to a parent class
             // - And that rule should be inherited to subclasses
             if (
-                empty($rule['instanceOf'])
-                && $key !== '*' && is_subclass_of($name, $key)
-                && (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
+                empty($rule['instanceOf']) &&
+                $key !== '*' &&
+                is_subclass_of($name, $key) &&
+                (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
             ) {
                 return $rule;
             }
         }
-        // No rule has matched, return the default rule if it's set
-        return isset($this->rules['*']) ? $this->rules['*'] : [];
+        // Return the default rule if no matching rule is found
+        return $this->getDefaultRule();
     }
 
     /**
