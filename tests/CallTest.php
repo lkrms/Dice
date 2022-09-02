@@ -89,7 +89,8 @@ class CallTest extends DiceTest {
         ];
 
         $dice = $this->dice->addRules($rules);
-        $object = $dice->create('TestCallVariadic', [], [new F()]);
+        $share = [new F()];
+        $object = $dice->create('TestCallVariadic', [], $share);
 
         $this->assertEquals(['test1'], $object->data);
     }
