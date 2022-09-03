@@ -1,20 +1,20 @@
 {
     "name": "lkrms/dice",
-    "description": "A minimalist Dependency injection container (DIC) for PHP. Forked from level-2/dice.",
+    "description": "A minimalist dependency injection container for PHP. Forked from level-2/dice.",
     "license": "BSD-2-Clause",
-    "homepage": "http://r.je/dice.html",
+    "homepage": "https://github.com/lkrms/Dice",
     "keywords": [
-        "Dependency injection",
-        "ioc",
-        "Dependency injection container",
-        "DI"
+        "container",
+        "dependency injection",
+        "di",
+        "ioc"
     ],
     "require": {
-        "php": ">=7.0.0"
+        "php": ">=7.0"
     },
     "autoload": {
         "psr-4": {
-            "Dice\\": "./"
+            "Dice\\": "src/"
         }
     },
     "require-dev": {

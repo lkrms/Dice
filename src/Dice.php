@@ -1,14 +1,5 @@
 <?php
 
-/**
- * Dice - A minimal Dependency Injection Container for PHP
- *
- * @author Tom Butler tom@r.je
- * @copyright 2012-2020 Tom Butler <tom@r.je> | https://r.je/dice
- * @license http://www.opensource.org/licenses/bsd-license.php BSD License
- * @version 4.0
- */
-
 namespace Dice;
 
 /**
