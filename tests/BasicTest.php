@@ -139,6 +139,20 @@ class BasicTest extends DiceTest {
 		$this->assertSame($a->b, $a->b->a->b);
 	}
 
+	public function testCyclicReferencesWithShareInstances() {
+		$rule = [];
+		$rule['shareInstances'] = ['CyclicB'];
+
+		$dice = $this->dice->addRule('CyclicA', $rule);
+
+		$a = $dice->create('CyclicA');
+
+		$this->assertInstanceOf('CyclicB', $a->b);
+		$this->assertInstanceOf('CyclicA', $a->b->a);
+
+		$this->assertSame($a->b, $a->b->a->b);
+	}
+
 	public function testInherit() {
 		$rule = ['shared' => true, 'inherit' => false];
 
