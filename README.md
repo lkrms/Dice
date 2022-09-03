@@ -1,3 +1,7 @@
+> **Note:** this is a fork of [Tom Butler's project][Level-2]. It reflects the
+> requirements and priorities of a [PHP toolkit][lkrms/util] that uses it, which
+> may or may not align with your own.
+
 [Dice PHP Dependency Injection Container](https://r.je/dice.html)
 ======================================
 
@@ -7,7 +11,7 @@ Dice is a minimalist Dependency Injection Container for PHP with a focus on bein
 Project Goals
 -------------
 
-1) To be lightweight and not a huge library with dozens of files (Dice is a single 100 line class) yet support all features (and more) offered by much more complex containers
+1) To be lightweight and not a huge library with dozens of files (Dice is a single class) yet support all features (and more) offered by much more complex containers
 
 2) To "just work". Basic functionality should work with zero configuration
 
@@ -19,7 +23,13 @@ Project Goals
 Installation
 ------------
 
-Just include the lightweight `Dice.php` in your project and it's usable without any further configuration:
+Install the latest version of this fork with [Composer](https://getcomposer.org/):
+
+```shell
+composer require lkrms/dice
+```
+
+Alternatively, include the lightweight `Dice.php` in your project and it's usable without any further configuration:
 
 Simple example:
 
@@ -57,21 +67,23 @@ For complete documentation please see the [Dice PHP Dependency Injection contain
 PHP version compatibility
 -------------------------
 
-Dice is compatible with PHP 7.0 and up, there are archived versions of Dice which support PHP 5.6 however this is no longer maintanied.
+Dice is compatible with PHP 7.0 and up, including PHP 8+.
 
 
 Performance
 -----------
 
-Dice uses reflection which is often wrongly labelled "slow". Reflection is considerably faster than loading and parsing a configuration file. There are a set of benchmarks [here](https://rawgit.com/TomBZombie/php-dependency-injection-benchmarks/master/test1-5_results.html) and [here](https://rawgit.com/TomBZombie/php-dependency-injection-benchmarks/master/test6_results.html) (To download the benchmark tool yourself see [this repository](https://github.com/TomBZombie/php-dependency-injection-benchmarks)) and Dice is faster than the others in most cases.
+Dice uses reflection which is often wrongly labelled "slow". Reflection is considerably faster than loading and parsing a configuration file. There are a set of benchmarks [here](https://rawgit.com/TomBZombie/php-dependency-injection-benchmarks/master/test1-5_results.html) and [here](https://rawgit.com/TomBZombie/php-dependency-injection-benchmarks/master/test6_results.html) (to download the benchmark tool yourself see [this repository](https://github.com/TomBZombie/php-dependency-injection-benchmarks)) and Dice is faster than the others in most cases.
 
-In the real world test ([test 6](https://rawgit.com/TomBZombie/php-dependency-injection-benchmarks/master/test6_results.html)) Dice is neck-and-neck with Pimple (which requires writing an awful lot of configuration code) and although Symfony\DependencyInjection is faster at creating objects, it has a larger overhead and you need to create over 500 objects on each page load until it becomes faster than Dice. The same is true of Phalcon, the overhead of loading the Phalcon extension means that unless you're creating well over a thousand objects per HTTP request, the overhead is not worthwhile.
+In the real world test ([test 6](https://rawgit.com/TomBZombie/php-dependency-injection-benchmarks/master/test6_results.html)) Dice is neck-and-neck with Pimple (which requires writing an awful lot of configuration code) and although `Symfony\DependencyInjection` is faster at creating objects, it has a larger overhead and you need to create over 500 objects on each page load until it becomes faster than Dice. The same is true of Phalcon, the overhead of loading the Phalcon extension means that unless you're creating well over a thousand objects per HTTP request, the overhead is not worthwhile.
 
 
 Credits
 ------------
 
 Originally developed by Tom Butler (@TomBZombie), with many thanks to daniel-meister (@daniel-meister), Garrett W. (@garrettw), maxwilms (@maxwilms) for bug fixes, suggestions and improvements.
+
+This fork is maintained by Luke Arms (@lkrms).
 
 
 Updates
@@ -114,7 +126,7 @@ $httpRequest = new HTTPRequest();
 $httpRequest = $httpRequest->url('http://example.org')->method('POST')->postdata('foo=bar');
 ```
 
-It was not possible for Dice to consturuct the configured object in previous versions. As of 4.0 Dice supports chaining method call using the `call` rule and the `Dice::CHAIN_CALL` constant:
+It was not possible for Dice to construct the configured object in previous versions. As of 4.0 Dice supports chaining method call using the `call` rule and the `Dice::CHAIN_CALL` constant:
 
 ```php
 $dice = $dice->addRule('HTTPRequest',
@@ -231,9 +243,7 @@ $dice->addRule('ClassName', [
 ```
 _to make the constant shorter to type out, you can `use \Dice\Dice;` and reference `Dice::INSTANCE`_
 
-10/06/2016
-
-** Backwards incompatible change **
+### 10/06/2016 - Backwards incompatible change
 
 Based on [Issue 110](https://github.com/Level-2/Dice/pull/110) named instances using `instanceOf` will now inherit the rules applied to the class they are instances of:
 
@@ -280,8 +290,9 @@ $dice->addRule('$MyNamedInstance', $rule);
 
 
 
-29/10/2014
-* Based on [Issue #15](https://github.com/TomBZombie/Dice/issues/15), Dice will now only call closures if they are wrapped in \Dice\Instance. **PLEASE NOTE: THIS IS BACKWARDS INCOMPATIBLE **.
+### 29/10/2014
+
+* Based on [Issue #15](https://github.com/TomBZombie/Dice/issues/15), Dice will now only call closures if they are wrapped in \Dice\Instance. **PLEASE NOTE: THIS IS BACKWARDS INCOMPATIBLE**.
 
 Previously Dice ran closures that were passed as substitutions, constructParams and when calling methods:
 
@@ -334,14 +345,14 @@ $rule->constructParams[] =  ['instance' => function() { {
 * Added PHP5.6 branch. Tidied up code by using PHP5.6 features. This will be moved to master when PHP5.6 is released
 
 28/06/2014
-* Greatly improved efficienty. Dice is now the fastest Dependency Injection Container for PHP!
+* Greatly improved efficiency. Dice is now the fastest Dependency Injection Container for PHP!
 
 06/06/2014
 * Added support for cyclic references ( https://github.com/TomBZombie/Dice/issues/7 ). Please note this is poor design but this fix will stop the infinite loop this design creates.
 
 27/03/2014
-* Removed assign() method as this duplicated functionality available using $rule->shared
-* Removed $callback argument in $dice->create() as the only real use for this feature can be better achieved using $rule->shareInstances
+* Removed `assign()` method as this duplicated functionality available using `$rule->shared`
+* Removed `$callback` argument in `$dice->create()` as the only real use for this feature can be better achieved using `$rule->shareInstances`
 * Tidied up code, removing unused/undocumented features. Dice is now even more lightweight and faster.
 * Fixed a bug where when using $rule->call it would use the substitution rules from the constructor on each method called
 * Updated [Dice documentation](https://r.je/dice.html) to use shorthand array syntax
@@ -363,3 +374,6 @@ $rule->constructParams[] =  ['instance' => function() { {
 	new DiceInstance => new \Dice\Instance
 	new DiceRule => new \Dice\Rule
 ```
+
+[Level-2]: https://github.com/Level-2/Dice
+[lkrms/util]: https://github.com/lkrms/php-util
