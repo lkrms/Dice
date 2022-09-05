@@ -65,12 +65,12 @@ class Dice
     /**
      * Add a rule to a class or named instance
      *
-     * The container can be fully configured using rules provided by associative
-     * arrays. See {@link https://r.je/dice.html#example3} for a description of
-     * the rules.
+     * The container is configured using rules provided by associative arrays.
+     * See {@link https://r.je/dice.html#example3} for a description of the
+     * rules.
      *
-     * If a shared instance of `$name` has been cached, calling `addRule($name)`
-     * will remove it.
+     * Note that if a shared instance of `$name` has been cached, calling
+     * `addRule($name)` will remove it.
      *
      * @return Dice A new instance with `$rule` applied to `$name`.
      */
@@ -110,10 +110,9 @@ class Dice
     }
 
     /**
-     * Provide a shared instance for a class or named instance
+     * Provide an existing shared instance for a class or named instance
      *
-     * @return Dice A new instance of `Dice` that resolves `$name` to
-     * `$instance`.
+     * @return Dice A new instance that resolves `$name` to `$instance`.
      */
     public function addShared(string $name, object $instance): self
     {
@@ -131,8 +130,8 @@ class Dice
      * instantiated by the container.
      *
      * If `$callbackId` is set and an existing callback was added with the same
-     * `$callbackId`, it will be replaced with `$callback`, otherwise
-     * `$callback` will be added after any existing callbacks.
+     * `$callbackId`, it will be replaced, otherwise `$callback` will be added
+     * after any existing callbacks.
      *
      * Example:
      *
@@ -289,7 +288,7 @@ class Dice
         // Throw an exception instead of crashing with a fatal error when PHP
         // fails to instantiate an interface
         if ($class->isInterface()) {
-            return function () {
+            return static function () {
                 throw new \InvalidArgumentException('Cannot instantiate interface');
             };
         }
@@ -299,23 +298,30 @@ class Dice
         // $constructor->getParameters() is only called once
         $params = $constructor ? $this->getParams($constructor, $rule) : null;
 
-        $isShared   = !empty($rule['shared']);
-        $maybeShare = function ($instance, array &$share) use ($isShared, $class, $name) {
-            if ($isShared) {
-                $_name = $class->isInternal() ? $class->name : $name;
-                $this->instances[$_name] = $this->instances['\\' . $_name] = $instance;
-            }
+        $maybeShare = static function ($instance, array &$share) use ($name) {
+            // The `shareInstances` loop below sets $share[$name] to `null`
+            // before passing $share to $this->create() by reference, allowing
+            // the newly created $instance to be shared early enough to avoid
+            // infinite recursion if the object graph contains circular
+            // dependencies
             if (array_key_exists($name, $share) && is_null($share[$name])) {
                 $share[$name] = $instance;
             }
             return $instance;
         };
+        if (!empty($rule['shared'])) {
+            $_name      = $class->isInternal() ? $class->name : $name;
+            $maybeShare = function ($instance, array &$share) use ($maybeShare, $_name) {
+                $this->instances[$_name] = $this->instances['\\' . $_name] = $instance;
+                return $maybeShare($instance, $share);
+            };
+        }
         if ($params) {
             // Internal classes don't have circular dependencies and may not
             // work with newInstanceWithoutConstructor(), so they are always
             // constructed normally
-            if ($class->isInternal() || !$isShared) {
-                $closure = function (array $args, array &$share) use ($class, $params, $maybeShare) {
+            if ($class->isInternal() || empty($rule['shared'])) {
+                $closure = static function (array $args, array &$share) use ($class, $params, $maybeShare) {
                     // Call $params to generate dependencies from $args and $share
                     return $maybeShare(new $class->name(...$params($args, $share)), $share);
                 };
@@ -325,36 +331,40 @@ class Dice
             // in the object graph. This is dangerous and probably shouldn't be
             // accommodated, but is relied upon by some Dice users.
             if (!$class->isInternal()) {
-                $circularClosure = function (array $args, array &$share) use ($class, $constructor, $params, $maybeShare) {
+                $circularClosure = static function (array $args, array &$share) use ($class, $constructor, $params, $maybeShare) {
                     $instance = $maybeShare($class->newInstanceWithoutConstructor(), $share);
                     $constructor->invokeArgs($instance, $params($args, $share));
                     return $instance;
                 };
-                // Only use $circularClosure to:
-                // - create shared instances (see $rule['shared']) and
-                // - resolve shared dependencies (see $rule['shareInstances'])
+                // Only use $circularClosure if:
+                // - $rule['shared'] is set, or
+                // - the class is listed in a $rule['shareInstances'] higher in
+                //   the object graph (only known at runtime)
                 $closure = !isset($closure)
                     ? $circularClosure
-                    : function (array $args, array &$share) use ($closure, $circularClosure, $name) {
+                    : static function (array $args, array &$share) use ($closure, $circularClosure, $name) {
                         if (array_key_exists($name, $share)) {
-                            $closure = $circularClosure;
+                            return $circularClosure($args, $share);
                         }
                         return $closure($args, $share);
                     };
             }
         } else {
             // Or just instantiate the class
-            $closure = function (array $args, array &$share) use ($class, $maybeShare) {
+            $closure = static function (array $args, array &$share) use ($class, $maybeShare) {
                 return $maybeShare(new $class->name, $share);
             };
         }
 
         // If there are shared instances, create and merge them with shared
-        // instances higher up the object graph
+        // instances higher in the object graph
         if (isset($rule['shareInstances'])) {
             $closure = function (array $args, array &$share) use ($closure, $rule) {
+                // Copy $share to prevent shared instances lower in the object
+                // graph tainting higher ones
                 $_share = $share;
                 foreach (array_diff($rule['shareInstances'], array_keys($_share)) as $instance) {
+                    // This allows $maybeShare to detect recursion (see above)
                     $_share[$instance] = null;
                     $_share[$instance] = $this->create($instance, [], $_share);
                 }
@@ -399,7 +409,7 @@ class Dice
             isset($this->callbacks[$name]) ? array_values($this->callbacks[$name]) : []
         );
         if ($callbacks) {
-            $closure = function (array $args, array &$share) use ($closure, $callbacks, $name) {
+            $closure = static function (array $args, array &$share) use ($closure, $callbacks, $name) {
                 $object = $closure($args, $share);
                 foreach ($callbacks as $callback) {
                     $object = $callback($object, $name);
