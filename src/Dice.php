@@ -281,9 +281,10 @@ class Dice
      */
     private function getClosure(string $name, array $rule)
     {
+        $instanceOf = isset($rule['instanceOf']) ? $rule['instanceOf'] : null;
         // Reflect the class and constructor (this should only need to be done
         // once per class)
-        $class = new \ReflectionClass(isset($rule['instanceOf']) ? $rule['instanceOf'] : $name);
+        $class = new \ReflectionClass($instanceOf ? $instanceOf : $name);
 
         // Throw an exception instead of crashing with a fatal error when PHP
         // fails to instantiate an interface
@@ -415,6 +416,24 @@ class Dice
                     $object = $callback($object, $name);
                 }
                 return $object;
+            };
+        }
+
+        // If $rule['inherit'] is true, $rule['instanceOf'] is set and the class
+        // it refers to has a ['shared' => true] rule, add a closure that:
+        // - returns the shared instance of $rule['instanceOf'] if it already
+        //   exists, or
+        // - creates an object normally and makes it the shared instance of
+        //   $rule['instanceOf']
+        if (
+            $instanceOf && !empty($this->getRule($instanceOf)['shared']) &&
+            (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
+        ) {
+            $closure = function (array $args, array &$share) use ($closure, $instanceOf) {
+                if (!empty($this->instances[$instanceOf])) {
+                    return $this->instances[$instanceOf];
+                }
+                return $this->instances[$instanceOf] = $this->instances['\\' . $instanceOf] = $closure($args, $share);
             };
         }
 
