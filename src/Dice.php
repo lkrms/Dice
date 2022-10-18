@@ -268,7 +268,7 @@ class Dice
         }
 
         // Call the cached closure which will return a fully constructed object of type $name
-        return $this->cache[$name]($args, $share);
+        return $this->cache[$name]($this, $args, $share);
     }
 
     /**
@@ -299,7 +299,7 @@ class Dice
         // $constructor->getParameters() is only called once
         $params = $constructor ? $this->getParams($constructor, $rule) : null;
 
-        $maybeShare = static function ($instance, array &$share) use ($name) {
+        $maybeShare = static function (Dice $dice, $instance, array &$share) use ($name) {
             // The `shareInstances` loop below sets $share[$name] to `null`
             // before passing $share to $this->create() by reference, allowing
             // the newly created $instance to be shared early enough to avoid
@@ -312,9 +312,9 @@ class Dice
         };
         if (!empty($rule['shared'])) {
             $_name      = $class->isInternal() ? $class->name : $name;
-            $maybeShare = function ($instance, array &$share) use ($maybeShare, $_name) {
-                $this->instances[$_name] = $this->instances['\\' . $_name] = $instance;
-                return $maybeShare($instance, $share);
+            $maybeShare = static function (Dice $dice, $instance, array &$share) use ($maybeShare, $_name) {
+                $dice->instances[$_name] = $dice->instances['\\' . $_name] = $instance;
+                return $maybeShare($dice, $instance, $share);
             };
         }
         if ($params) {
@@ -322,9 +322,9 @@ class Dice
             // work with newInstanceWithoutConstructor(), so they are always
             // constructed normally
             if ($class->isInternal() || empty($rule['shared'])) {
-                $closure = static function (array $args, array &$share) use ($class, $params, $maybeShare) {
+                $closure = static function (Dice $dice, array $args, array &$share) use ($class, $params, $maybeShare) {
                     // Call $params to generate dependencies from $args and $share
-                    return $maybeShare(new $class->name(...$params($args, $share)), $share);
+                    return $maybeShare($dice, new $class->name(...$params($dice, $args, $share)), $share);
                 };
             }
             // Other classes can be instantiated without calling the constructor
@@ -332,9 +332,9 @@ class Dice
             // in the object graph. This is dangerous and probably shouldn't be
             // accommodated, but is relied upon by some Dice users.
             if (!$class->isInternal()) {
-                $circularClosure = static function (array $args, array &$share) use ($class, $constructor, $params, $maybeShare) {
-                    $instance = $maybeShare($class->newInstanceWithoutConstructor(), $share);
-                    $constructor->invokeArgs($instance, $params($args, $share));
+                $circularClosure = static function (Dice $dice, array $args, array &$share) use ($class, $constructor, $params, $maybeShare) {
+                    $instance = $maybeShare($dice, $class->newInstanceWithoutConstructor(), $share);
+                    $constructor->invokeArgs($instance, $params($dice, $args, $share));
                     return $instance;
                 };
                 // Only use $circularClosure if:
@@ -343,51 +343,54 @@ class Dice
                 //   the object graph (only known at runtime)
                 $closure = !isset($closure)
                     ? $circularClosure
-                    : static function (array $args, array &$share) use ($closure, $circularClosure, $name) {
+                    : static function (Dice $dice, array $args, array &$share) use ($closure, $circularClosure, $name) {
                         if (array_key_exists($name, $share)) {
-                            return $circularClosure($args, $share);
+                            return $circularClosure($dice, $args, $share);
                         }
-                        return $closure($args, $share);
+                        return $closure($dice, $args, $share);
                     };
             }
         } else {
             // Or just instantiate the class
-            $closure = static function (array $args, array &$share) use ($class, $maybeShare) {
-                return $maybeShare(new $class->name, $share);
+            $closure = static function (Dice $dice, array $args, array &$share) use ($class, $maybeShare) {
+                return $maybeShare($dice, new $class->name, $share);
             };
         }
 
         // If there are shared instances, create and merge them with shared
         // instances higher in the object graph
         if (isset($rule['shareInstances'])) {
-            $closure = function (array $args, array &$share) use ($closure, $rule) {
+            $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $rule) {
                 // Copy $share to prevent shared instances lower in the object
                 // graph tainting higher ones
                 $_share = $share;
                 foreach (array_diff($rule['shareInstances'], array_keys($_share)) as $instance) {
                     // This allows $maybeShare to detect recursion (see above)
                     $_share[$instance] = null;
-                    $_share[$instance] = $this->create($instance, [], $_share);
+                    $_share[$instance] = $dice->create($instance, [], $_share);
                 }
-                return $closure($args, $_share);
+                return $closure($dice, $args, $_share);
             };
         }
 
         // When $rule['call'] is set, wrap the closure in another closure which will call the required methods after
         // constructing the object By putting this in a closure, the loop is never executed unless call is actually set
         if (isset($rule['call'])) {
-            $closure = function (array $args, array &$share) use ($closure, $class, $rule, $name) {
+            $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $class, $rule, $name) {
                 // Construct the object using the original closure
-                $object = $closure($args, $share);
+                $object = $closure($dice, $args, $share);
 
                 foreach ($rule['call'] as $call) {
                     // Generate the method arguments using getParams() and call the returned closure
-                    $params = $this->getParams($class->getMethod($call[0]), ['shareInstances' => isset($rule['shareInstances']) ? $rule['shareInstances'] : []])(($this->expand(isset($call[1]) ? $call[1] : [])), $share);
+                    $params = $dice->getParams(
+                        $class->getMethod($call[0]),
+                        ['shareInstances' => isset($rule['shareInstances']) ? $rule['shareInstances'] : []]
+                    )($dice, $dice->expand(isset($call[1]) ? $call[1] : []), $share);
                     $return = $object->{$call[0]}(...$params);
                     if (isset($call[2])) {
                         if ($call[2] === self::CHAIN_CALL) {
                             if (!empty($rule['shared'])) {
-                                $this->instances[$name] = $return;
+                                $dice->instances[$name] = $return;
                             }
                             if (is_object($return)) {
                                 $class = new \ReflectionClass(get_class($return));
@@ -410,8 +413,8 @@ class Dice
             isset($this->callbacks[$name]) ? array_values($this->callbacks[$name]) : []
         );
         if ($callbacks) {
-            $closure = static function (array $args, array &$share) use ($closure, $callbacks, $name) {
-                $object = $closure($args, $share);
+            $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $callbacks, $name) {
+                $object = $closure($dice, $args, $share);
                 foreach ($callbacks as $callback) {
                     $object = $callback($object, $name);
                 }
@@ -429,11 +432,11 @@ class Dice
             $instanceOf && !empty($this->getRule($instanceOf)['shared']) &&
             (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
         ) {
-            $closure = function (array $args, array &$share) use ($closure, $instanceOf) {
-                if (!empty($this->instances[$instanceOf])) {
-                    return $this->instances[$instanceOf];
+            $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $instanceOf) {
+                if (!empty($dice->instances[$instanceOf])) {
+                    return $dice->instances[$instanceOf];
                 }
-                return $this->instances[$instanceOf] = $this->instances['\\' . $instanceOf] = $closure($args, $share);
+                return $dice->instances[$instanceOf] = $dice->instances['\\' . $instanceOf] = $closure($dice, $args, $share);
             };
         }
 
@@ -531,10 +534,10 @@ class Dice
         }
 
         // Return a closure that uses the cached information to generate the arguments for the method
-        return function (array $args, array &$share = []) use ($paramInfo, $rule) {
+        return static function (Dice $dice, array $args, array &$share = []) use ($paramInfo, $rule) {
             // If the rule has construtParams set, construct any classes reference and use them as $args
             if (isset($rule['constructParams'])) {
-                $args = array_merge($args, $this->expand($rule['constructParams'], $share));
+                $args = array_merge($args, $dice->expand($rule['constructParams'], $share));
             }
 
             // Array of matched parameters
@@ -544,12 +547,12 @@ class Dice
             foreach ($paramInfo as list($class, $param, $sub)) {
                 // Loop through $args and see whether or not each value can match the current parameter based on type
                 // hint
-                if ($args && ($match = $this->matchParam($param, $class, $args)) !== false) {
+                if ($args && ($match = $dice->matchParam($param, $class, $args)) !== false) {
                     $parameters[] = $match;
                 }
                 // Do the same with $share
                 else {
-                    if ($share && ($match = $this->matchParam($param, $class, $share, false)) !== false) {
+                    if ($share && ($match = $dice->matchParam($param, $class, $share, false)) !== false) {
                         $parameters[] = $match;
                     }
                     // When nothing from $args or $share matches but a class is type hinted, create an instance to use,
@@ -558,9 +561,9 @@ class Dice
                         if ($class) {
                             try {
                                 if ($sub) {
-                                    $parameters[] = $this->expand($rule['substitutions'][$class], $share, true);
+                                    $parameters[] = $dice->expand($rule['substitutions'][$class], $share, true);
                                 } else {
-                                    $parameters[] = !$param->allowsNull() ? $this->create($class, [], $share) : null;
+                                    $parameters[] = !$param->allowsNull() ? $dice->create($class, [], $share) : null;
                                 }
                             } catch (\InvalidArgumentException $e) {
                             }
@@ -579,7 +582,7 @@ class Dice
                                 }
                             } else {
                                 if ($args) {
-                                    $parameters[] = $this->expand(array_shift($args));
+                                    $parameters[] = $dice->expand(array_shift($args));
                                 }
                                 // For variadic parameters, provide remaining $args
                                 else {
