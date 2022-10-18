@@ -63,6 +63,11 @@ class Dice
     private $callbacks = [];
 
     /**
+     * @var bool
+     */
+    private $mutable = false;
+
+    /**
      * Add a rule to a class or named instance
      *
      * The container is configured using rules provided by associative arrays.
@@ -76,9 +81,11 @@ class Dice
      */
     public function addRule(string $name, array $rule): self
     {
-        $dice = clone $this;
-        $this->addRuleTo($dice, $name, $rule);
-        return $dice;
+        return $this->callMutable(
+            static function (Dice $dice) use ($name, $rule) {
+                return self::addRuleTo($dice, $name, $rule);
+            }
+        );
     }
 
     /**
@@ -102,11 +109,14 @@ class Dice
         if (is_string($rules)) {
             $rules = json_decode(file_get_contents($rules), true);
         }
-        $dice = clone $this;
-        foreach ($rules as $name => $rule) {
-            $this->addRuleTo($dice, $name, $rule);
-        }
-        return $dice;
+        return $this->callMutable(
+            static function (Dice $dice) use ($rules) {
+                foreach ($rules as $name => $rule) {
+                    self::addRuleTo($dice, $name, $rule);
+                }
+                return $dice;
+            }
+        );
     }
 
     /**
@@ -141,17 +151,19 @@ class Dice
      */
     public function addCallback(string $name, callable $callback, ?string $callbackId = null): self
     {
-        $dice = clone $this;
-        if (is_null($callbackId)) {
-            $dice->callbacks[$name][] = $callback;
-        } else {
-            $dice->callbacks[$name][$callbackId] = $callback;
-        }
-        $this->flush($dice, $name, true);
-        return $dice;
+        return $this->callMutable(
+            static function (Dice $dice) use ($name, $callback, $callbackId) {
+                if (is_null($callbackId)) {
+                    $dice->callbacks[$name][] = $callback;
+                } else {
+                    $dice->callbacks[$name][$callbackId] = $callback;
+                }
+                return self::flush($dice, $name, true);
+            }
+        );
     }
 
-    private function addRuleTo(Dice $dice, string $name, array $rule)
+    private static function addRuleTo(Dice $dice, string $name, array $rule): self
     {
         if (isset($rule['instanceOf']) && (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)) {
             $rule = array_replace_recursive($dice->getRule($rule['instanceOf']), $rule);
@@ -163,17 +175,21 @@ class Dice
             }
         }
         // Clear any existing closures or instances for this class
-        $this->flush($dice, $name);
+        self::flush($dice, $name);
         $dice->rules[ltrim(strtolower($name), '\\')] = array_replace_recursive($dice->getRule($name), $rule);
+
+        return $dice;
     }
 
-    private function flush(Dice $dice, string $name, bool $cacheOnly = false)
+    private static function flush(Dice $dice, string $name, bool $cacheOnly = false): self
     {
         if (!$cacheOnly) {
             $_name = ltrim($name, '\\');
             unset($dice->instances[$_name], $dice->instances['\\' . $_name]);
         }
         unset($dice->cache[$name]);
+
+        return $dice;
     }
 
     /**
@@ -183,10 +199,24 @@ class Dice
      */
     public function removeRule(string $name): self
     {
-        $dice = clone $this;
-        unset($dice->rules[ltrim(strtolower($name), '\\')]);
-        $this->flush($dice, $name);
-        return $dice;
+        return $this->callMutable(
+            static function (Dice $dice) use ($name) {
+                unset($dice->rules[ltrim(strtolower($name), '\\')]);
+                self::flush($dice, $name);
+                return $dice;
+            }
+        );
+    }
+
+    private function callMutable(callable $callback, $clone = true)
+    {
+        $dice = $this->mutable || !$clone ? $this : clone $this;
+        list($mutable, $this->mutable) = [$this->mutable, true];
+        try {
+            return $callback($dice);
+        } finally {
+            $this->mutable = $mutable;
+        }
     }
 
     /**
@@ -268,7 +298,12 @@ class Dice
         }
 
         // Call the cached closure which will return a fully constructed object of type $name
-        return $this->cache[$name]($this, $args, $share);
+        return $this->callMutable(
+            static function (Dice $dice) use ($name, $args, &$share) {
+                return $dice->cache[$name]($dice, $args, $share);
+            },
+            false
+        );
     }
 
     /**
