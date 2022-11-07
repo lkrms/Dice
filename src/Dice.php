@@ -143,17 +143,31 @@ class Dice
      * `$callbackId`, it will be replaced, otherwise `$callback` will be added
      * after any existing callbacks.
      *
+     * If `$first` is `true`, `$callback` will be added before any existing
+     * callbacks.
+     *
+     * If a callback sets `$continue = false`, no more callbacks will be run on
+     * the instance.
+     *
      * Example:
      *
-     * ```
-     * $dice = $dice->addCallback('*', fn(object $instance, string $name) => $instance->hydrate());
+     * ```php
+     * $dice = $dice->addCallback('*', function (object $instance, string $name, bool &$continue): object { return $instance->hydrate(); });
      * ```
      */
-    public function addCallback(string $name, callable $callback, ?string $callbackId = null): self
+    public function addCallback(string $name, callable $callback, ?string $callbackId = null, bool $first = false): self
     {
         return $this->callMutable(
-            static function (Dice $dice) use ($name, $callback, $callbackId) {
-                if (is_null($callbackId)) {
+            static function (Dice $dice) use ($name, $callback, $callbackId, $first) {
+                if ($first) {
+                    if (is_null($callbackId)) {
+                        $insert = [$callback];
+                    } else {
+                        $insert = [$callbackId => $callback];
+                        unset($dice->callbacks[$name][$callbackId]);
+                    }
+                    array_splice($dice->callbacks[$name], 0, 0, $insert);
+                } elseif (is_null($callbackId)) {
                     $dice->callbacks[$name][] = $callback;
                 } else {
                     $dice->callbacks[$name][$callbackId] = $callback;
@@ -449,9 +463,13 @@ class Dice
         );
         if ($callbacks) {
             $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $callbacks, $name) {
-                $object = $closure($dice, $args, $share);
+                $object   = $closure($dice, $args, $share);
+                $continue = true;
                 foreach ($callbacks as $callback) {
-                    $object = $callback($object, $name);
+                    $object = $callback($object, $name, $continue);
+                    if (!$continue) {
+                        break;
+                    }
                 }
                 return $object;
             };
