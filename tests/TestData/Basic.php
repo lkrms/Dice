@@ -167,3 +167,24 @@ class NullableScalarTypeHint
         $this->b = $b;
     }
 }
+
+class PassByReference
+{
+    public $a;
+    public $b;
+    public $c;
+
+    public function __construct(string &$a, someclass &$b, &$c) {
+        $this->a = &$a;
+        $this->b = &$b;
+        $this->c = &$c;
+    }
+
+    public function append(string $str) {
+        $this->a .= $str;
+    }
+
+    public function replace(someclass $obj) {
+        $this->b = $obj;
+    }
+}

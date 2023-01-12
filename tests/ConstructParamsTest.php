@@ -148,4 +148,23 @@ class ConstructParamsTest extends DiceTest {
         $this->assertEquals('b', $nullableScalarTypeHint->b);
     }
 
+    public function testPassByReference()
+    {
+        $a  = 'passed';
+        $b  = new someclass();
+        $b1 = $b;
+        $b2 = &$b;
+        $c  = 'untyped';
+
+        $passByReference = $this->dice->create('PassByReference', [&$a, &$b, &$c]);
+        $passByReference->append(' by reference');
+        $passByReference->replace(new someclass());
+        $passByReference->c = strtoupper($passByReference->c);
+
+        $this->assertEquals('passed by reference', $a);
+        $this->assertNotSame($b, $b1);
+        $this->assertSame($b, $b2);
+        $this->assertEquals('UNTYPED', $c);
+    }
+
 }

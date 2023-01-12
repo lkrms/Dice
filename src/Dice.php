@@ -522,37 +522,68 @@ class Dice
      */
     private function expand($param, array &$share = [], bool $createFromString = false)
     {
+        $this->expandParam($param, $share, $createFromString);
+
+        return $param;
+    }
+
+    /**
+     * Identical to expand, but references are preserved
+     *
+     * @see Dice::expand()
+     */
+    private function &expandByRef(&$param, array &$share = [], bool $createFromString = false)
+    {
+        $this->expandParam($param, $share, $createFromString);
+
+        return $param;
+    }
+
+    private function expandParam(&$param, array &$share = [], bool $createFromString = false)
+    {
         if (is_array($param)) {
             // if a rule specifies Dice::INSTANCE, look up the relevant instance
             if (isset($param[self::INSTANCE])) {
                 if ($param[self::INSTANCE] === self::SELF) {
-                    return $this;
+                    $param = $this;
+
+                    return;
                 }
                 // Support Dice::INSTANCE by creating/fetching the specified instance
                 if (is_array($param[self::INSTANCE])) {
-                    $param[self::INSTANCE][0] = $this->expand($param[self::INSTANCE][0], $share, true);
+                    $this->expandParam($param[self::INSTANCE][0], $share, true);
                 }
                 if (is_callable($param[self::INSTANCE])) {
-                    return call_user_func($param[self::INSTANCE]);
+                    $param = call_user_func($param[self::INSTANCE]);
+
+                    return;
                 } else {
-                    return $this->create($param[self::INSTANCE], $share);
+                    $param = $this->create($param[self::INSTANCE], $share);
+
+                    return;
                 }
             } else {
                 if (isset($param[self::GLOBAL])) {
-                    return $GLOBALS[$param[self::GLOBAL]];
+                    $param = $GLOBALS[$param[self::GLOBAL]];
+
+                    return;
                 } else {
                     if (isset($param[self::CONSTANT])) {
-                        return constant($param[self::CONSTANT]);
+                        $param = constant($param[self::CONSTANT]);
+
+                        return;
                     } else {
-                        foreach ($param as $name => $value) {
-                            $param[$name] = $this->expand($value, $share);
+                        foreach ($param as &$value) {
+                            $this->expandParam($value, $share);
                         }
                     }
                 }
             }
         }
 
-        return is_string($param) && $createFromString ? $this->create($param, $share) : $param;
+        if (is_string($param) && $createFromString) {
+            $param = $this->create($param, $share);
+        }
     }
 
     /**
@@ -585,9 +616,35 @@ class Dice
     }
 
     /**
+     * Identical to matchParam, but references in $search are preserved
+     *
+     * @see Dice::matchParam()
+     */
+    private function &matchParamByRef(\ReflectionParameter $param, ?string $class, array &$search, bool $remove = true)
+    {
+        $false = false;
+        if (!$class) {
+            return $false;
+        }
+        foreach ($search as $key => &$value) {
+            if ($value instanceof $class || ($value === null && $param->allowsNull())) {
+                // Remove the value from $search so it won't wrongly match
+                // another parameter
+                if ($remove) {
+                    unset($search[$key]);
+                }
+
+                return $value;
+            }
+        }
+
+        return $false;
+    }
+
+    /**
      * Returns a closure that generates arguments for $method based on $rule and any $args passed into the closure
      *
-     * @param object $method An instance of ReflectionMethod (see:
+     * @param \ReflectionMethod $method An instance of ReflectionMethod (see:
      * {@link http://php.net/manual/en/class.reflectionmethod.php})
      * @param array $rule The container can be fully configured using rules provided by associative arrays. See
      * {@link https://r.je/dice.html#example3} for a description of the rules.
@@ -600,7 +657,8 @@ class Dice
         foreach ($method->getParameters() as $param) {
             $type        = $param->getType();
             $class       = $type instanceof \ReflectionNamedType && !$type->isBuiltIn() ? $type->getName() : null;
-            $paramInfo[] = [$class, $param, isset($rule['substitutions']) && array_key_exists($class, $rule['substitutions'])];
+            $byRef       = $param->isPassedByReference();
+            $paramInfo[] = [$class, $byRef, $param, isset($rule['substitutions']) && array_key_exists($class, $rule['substitutions'])];
         }
 
         // Return a closure that uses the cached information to generate the arguments for the method
@@ -614,14 +672,17 @@ class Dice
             $parameters = [];
 
             // Fnd a value for each method argument
-            foreach ($paramInfo as list($class, $param, $sub)) {
+            foreach ($paramInfo as list($class, $byRef, $param, $sub)) {
                 // Loop through $args and see whether or not each value can match the current parameter based on type
                 // hint
-                if ($args && ($match = $dice->matchParam($param, $class, $args)) !== false) {
+                if ($args && $byRef && ($match = &$dice->matchParamByRef($param, $class, $args)) !== false) {
+                    $parameters[] = &$match;
+                } elseif ($args && !$byRef && ($match = $dice->matchParam($param, $class, $args)) !== false) {
                     $parameters[] = $match;
                 }
                 // Do the same with $share
                 else {
+                    unset($match);
                     if ($share && ($match = $dice->matchParam($param, $class, $share, false)) !== false) {
                         $parameters[] = $match;
                     }
@@ -642,7 +703,15 @@ class Dice
                             // AF workaround: call_user_func('is_' . $type, '')
 
                             // Find a match in $args for scalar types
-                            if ($args && $param->getType()) {
+                            if ($args && $byRef && $param->getType()) {
+                                foreach ($args as $key => &$value) {
+                                    if (call_user_func('is_' . $param->getType()->getName(), $value) || (is_null($value) && $param->allowsNull())) {
+                                        $parameters[] = &$value;
+                                        unset($args[$key], $value);
+                                        break;
+                                    }
+                                }
+                            } elseif ($args && !$byRef && $param->getType()) {
                                 foreach ($args as $key => $value) {
                                     if (call_user_func('is_' . $param->getType()->getName(), $value) || (is_null($value) && $param->allowsNull())) {
                                         $parameters[] = $value;
@@ -651,7 +720,10 @@ class Dice
                                     }
                                 }
                             } else {
-                                if ($args) {
+                                if ($args && $byRef) {
+                                    reset($args);
+                                    $parameters[] = &$dice->expandByRef($args[key($args)]);
+                                } elseif ($args && !$byRef) {
                                     $parameters[] = $dice->expand(array_shift($args));
                                 }
                                 // For variadic parameters, provide remaining $args
