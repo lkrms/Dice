@@ -11,11 +11,11 @@ namespace Dice;
  */
 class Dice
 {
-    const CONSTANT = 'Dice::CONSTANT';
-    const GLOBAL = 'Dice::GLOBAL';
-    const INSTANCE = 'Dice::INSTANCE';
+    const CONSTANT   = 'Dice::CONSTANT';
+    const GLOBAL     = 'Dice::GLOBAL';
+    const INSTANCE   = 'Dice::INSTANCE';
     const CHAIN_CALL = 'Dice::CHAIN_CALL';
-    const SELF = 'Dice::SELF';
+    const SELF       = 'Dice::SELF';
 
     /**
      * Rule name => rule
@@ -109,11 +109,13 @@ class Dice
         if (is_string($rules)) {
             $rules = json_decode(file_get_contents($rules), true);
         }
+
         return $this->callMutable(
             static function (Dice $dice) use ($rules) {
                 foreach ($rules as $name => $rule) {
                     self::addRuleTo($dice, $name, $rule);
                 }
+
                 return $dice;
             }
         );
@@ -126,9 +128,10 @@ class Dice
      */
     public function addShared(string $name, object $instance): self
     {
-        $_name = ltrim($name, '\\');
-        $dice  = $this->removeRule($name);
+        $_name                   = ltrim($name, '\\');
+        $dice                    = $this->removeRule($name);
         $dice->instances[$_name] = $dice->instances['\\' . $_name] = $instance;
+
         return $dice;
     }
 
@@ -172,6 +175,7 @@ class Dice
                 } else {
                     $dice->callbacks[$name][$callbackId] = $callback;
                 }
+
                 return self::flush($dice, $name, true);
             }
         );
@@ -217,6 +221,7 @@ class Dice
             static function (Dice $dice) use ($name) {
                 unset($dice->rules[ltrim(strtolower($name), '\\')]);
                 self::flush($dice, $name);
+
                 return $dice;
             }
         );
@@ -224,7 +229,9 @@ class Dice
 
     private function callMutable(callable $callback, $clone = true)
     {
-        $dice = $this->mutable || !$clone ? $this : clone $this;
+        $dice = $this->mutable || !$clone
+            ? $this
+            : clone $this;
         list($mutable, $this->mutable) = [$this->mutable, true];
         try {
             return $callback($dice);
@@ -270,9 +277,9 @@ class Dice
             // - And that rule should be inherited to subclasses
             if (
                 empty($rule['instanceOf']) &&
-                $key !== '*' &&
-                is_subclass_of($name, $key) &&
-                (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
+                    $key !== '*' &&
+                    is_subclass_of($name, $key) &&
+                    (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
             ) {
                 return $rule;
             }
@@ -333,7 +340,7 @@ class Dice
         $instanceOf = isset($rule['instanceOf']) ? $rule['instanceOf'] : null;
         // Reflect the class and constructor (this should only need to be done
         // once per class)
-        $class = new \ReflectionClass($instanceOf ? $instanceOf : $name);
+        $class      = new \ReflectionClass($instanceOf ? $instanceOf : $name);
 
         // Throw an exception instead of crashing with a fatal error when PHP
         // fails to instantiate an interface
@@ -346,7 +353,7 @@ class Dice
         $constructor = $class->getConstructor();
         // Create a parameter generation closure so
         // $constructor->getParameters() is only called once
-        $params = $constructor ? $this->getParams($constructor, $rule) : null;
+        $params      = $constructor ? $this->getParams($constructor, $rule) : null;
 
         $maybeShare = static function (Dice $dice, $instance, array &$share) use ($name) {
             // The `shareInstances` loop below sets $share[$name] to `null`
@@ -357,12 +364,14 @@ class Dice
             if (array_key_exists($name, $share) && is_null($share[$name])) {
                 $share[$name] = $instance;
             }
+
             return $instance;
         };
         if (!empty($rule['shared'])) {
-            $_name      = $class->isInternal() ? $class->name : $name;
+            $_name = $class->isInternal() ? $class->name : $name;
             $maybeShare = static function (Dice $dice, $instance, array &$share) use ($maybeShare, $_name) {
                 $dice->instances[$_name] = $dice->instances['\\' . $_name] = $instance;
+
                 return $maybeShare($dice, $instance, $share);
             };
         }
@@ -384,6 +393,7 @@ class Dice
                 $circularClosure = static function (Dice $dice, array $args, array &$share) use ($class, $constructor, $params, $maybeShare) {
                     $instance = $maybeShare($dice, $class->newInstanceWithoutConstructor(), $share);
                     $constructor->invokeArgs($instance, $params($dice, $args, $share));
+
                     return $instance;
                 };
                 // Only use $circularClosure if:
@@ -396,6 +406,7 @@ class Dice
                         if (array_key_exists($name, $share)) {
                             return $circularClosure($dice, $args, $share);
                         }
+
                         return $closure($dice, $args, $share);
                     };
             }
@@ -418,6 +429,7 @@ class Dice
                     $_share[$instance] = null;
                     $_share[$instance] = $dice->create($instance, [], $_share);
                 }
+
                 return $closure($dice, $args, $_share);
             };
         }
@@ -447,10 +459,11 @@ class Dice
                             $object = $return;
                         } else
                             if (is_callable($call[2])) {
-                            call_user_func($call[2], $return);
-                        }
+                                call_user_func($call[2], $return);
+                            }
                     }
                 }
+
                 return $object;
             };
         }
@@ -471,6 +484,7 @@ class Dice
                         break;
                     }
                 }
+
                 return $object;
             };
         }
@@ -483,12 +497,13 @@ class Dice
         //   $rule['instanceOf']
         if (
             $instanceOf && !empty($this->getRule($instanceOf)['shared']) &&
-            (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
+                (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
         ) {
             $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $instanceOf) {
                 if (!empty($dice->instances[$instanceOf])) {
                     return $dice->instances[$instanceOf];
                 }
+
                 return $dice->instances[$instanceOf] = $dice->instances['\\' . $instanceOf] = $closure($dice, $args, $share);
             };
         }
@@ -561,9 +576,11 @@ class Dice
                 if ($remove) {
                     unset($search[$key]);
                 }
+
                 return $value;
             }
         }
+
         return false;
     }
 
@@ -652,6 +669,7 @@ class Dice
                     }
                 }
             }
+
             return $parameters;
         };
     }
