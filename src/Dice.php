@@ -338,22 +338,33 @@ class Dice
     private function getClosure(string $name, array $rule)
     {
         $instanceOf = isset($rule['instanceOf']) ? $rule['instanceOf'] : null;
-        // Reflect the class and constructor (this should only need to be done
-        // once per class)
-        $class      = new \ReflectionClass($instanceOf ? $instanceOf : $name);
+        if (!$instanceOf) {
+            $instanceOf = $name;
+        }
 
         // Throw an exception instead of crashing with a fatal error when PHP
         // fails to instantiate an interface
-        if ($class->isInterface()) {
-            return static function () {
-                throw new \InvalidArgumentException('Cannot instantiate interface');
+        if (interface_exists($instanceOf)) {
+            return static function () use ($instanceOf) {
+                throw new DiceException(sprintf('Cannot instantiate interface: %s', $instanceOf));
             };
         }
+
+        // Throw an exception when an instance of a non-existent class is
+        // requested, instead of a ReflectionException now
+        if (!class_exists($instanceOf)) {
+            return static function () use ($instanceOf) {
+                throw new DiceException(sprintf('Class does not exist: %s', $instanceOf));
+            };
+        }
+        // Reflect the class and constructor (this should only need to be done
+        // once per class)
+        $class = new \ReflectionClass($instanceOf);
 
         $constructor = $class->getConstructor();
         // Create a parameter generation closure so
         // $constructor->getParameters() is only called once
-        $params      = $constructor ? $this->getParams($constructor, $rule) : null;
+        $params = $constructor ? $this->getParams($constructor, $rule) : null;
 
         $maybeShare = static function (Dice $dice, $instance, array &$share) use ($name) {
             // The `shareInstances` loop below sets $share[$name] to `null`
@@ -457,10 +468,11 @@ class Dice
                                 $class = new \ReflectionClass(get_class($return));
                             }
                             $object = $return;
-                        } else
+                        } else {
                             if (is_callable($call[2])) {
                                 call_user_func($call[2], $return);
                             }
+                        }
                     }
                 }
 
@@ -690,13 +702,10 @@ class Dice
                     // using a substitution if set
                     else {
                         if ($class) {
-                            try {
-                                if ($sub) {
-                                    $parameters[] = $dice->expand($rule['substitutions'][$class], $share, true);
-                                } else {
-                                    $parameters[] = !$param->allowsNull() ? $dice->create($class, [], $share) : null;
-                                }
-                            } catch (\InvalidArgumentException $e) {
+                            if ($sub) {
+                                $parameters[] = $dice->expand($rule['substitutions'][$class], $share, true);
+                            } else {
+                                $parameters[] = !$param->allowsNull() ? $dice->create($class, [], $share) : null;
                             }
                         } else {
                             // Support PHP 7 scalar type hinting, is_a('string', 'foo') doesn't work so this is a hacky
