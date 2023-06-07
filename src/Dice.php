@@ -52,6 +52,15 @@ class Dice
     private $instances = [];
 
     /**
+     * Name => shared instance
+     *
+     * A backup copy of instances provided via {@see Dice::addShared()}.
+     *
+     * @var array<string,object>
+     */
+    private $shared = [];
+
+    /**
      * Name => callback array
      *
      * Callbacks with a `$callbackId` have string keys, otherwise they have
@@ -131,6 +140,7 @@ class Dice
         $_name                   = ltrim($name, '\\');
         $dice                    = $this->removeRule($name);
         $dice->instances[$_name] = $dice->instances['\\' . $_name] = $instance;
+        $dice->shared[$_name]    = $dice->shared['\\' . $_name] = $instance;
 
         return $dice;
     }
@@ -162,7 +172,7 @@ class Dice
     {
         return $this->callMutable(
             static function (Dice $dice) use ($name, $callback, $callbackId, $first) {
-                if ($first) {
+                if ($first && !empty($dice->callbacks[$name])) {
                     if (is_null($callbackId)) {
                         $insert = [$callback];
                     } else {
@@ -201,9 +211,19 @@ class Dice
 
     private static function flush(Dice $dice, string $name, bool $cacheOnly = false): self
     {
+        if ($name === '*') {
+            if (!$cacheOnly) {
+                $dice->instances = $dice->shared;
+            }
+            $dice->cache = [];
+
+            return $dice;
+        }
+
         if (!$cacheOnly) {
             $_name = ltrim($name, '\\');
-            unset($dice->instances[$_name], $dice->instances['\\' . $_name]);
+            unset($dice->instances[$_name], $dice->instances['\\' . $_name],
+                $dice->shared[$_name], $dice->shared['\\' . $_name]);
         }
         unset($dice->cache[$name]);
 
@@ -483,8 +503,8 @@ class Dice
         // If callbacks have been added for $name, enclose $closure in another
         // closure that applies them
         $callbacks = array_merge(
-            isset($this->callbacks['*']) ? array_values($this->callbacks['*']) : [],
-            isset($this->callbacks[$name]) ? array_values($this->callbacks[$name]) : []
+            isset($this->callbacks[$name]) ? array_values($this->callbacks[$name]) : [],
+            isset($this->callbacks['*']) ? array_values($this->callbacks['*']) : []
         );
         if ($callbacks) {
             $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $callbacks, $name) {
