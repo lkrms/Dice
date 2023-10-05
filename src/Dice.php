@@ -7,7 +7,6 @@ namespace Dice;
  *
  * Because `Dice` is immutable, methods that change its configuration return a
  * new object.
- *
  */
 class Dice
 {
@@ -140,7 +139,7 @@ class Dice
         $_name                   = ltrim($name, '\\');
         $dice                    = $this->removeRule($name);
         $dice->instances[$_name] = $dice->instances['\\' . $_name] = $instance;
-        $dice->shared[$_name]    = $dice->shared['\\' . $_name] = $instance;
+        $dice->shared[$_name]    = $dice->shared['\\' . $_name]    = $instance;
 
         return $dice;
     }
@@ -262,7 +261,6 @@ class Dice
 
     /**
      * Returns true if a rule has been added to the class $name
-     *
      */
     public function hasRule(string $name): bool
     {
@@ -281,7 +279,6 @@ class Dice
 
     /**
      * Returns the rule applied to the given class or named instance
-     *
      */
     public function getRule(string $name): array
     {
@@ -297,9 +294,9 @@ class Dice
             // - And that rule should be inherited to subclasses
             if (
                 empty($rule['instanceOf']) &&
-                    $key !== '*' &&
-                    is_subclass_of($name, $key) &&
-                    (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
+                $key !== '*' &&
+                is_subclass_of($name, $key) &&
+                (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
             ) {
                 return $rule;
             }
@@ -310,7 +307,6 @@ class Dice
 
     /**
      * Returns true if a shared instance of $name is available
-     *
      */
     public function hasShared(string $name): bool
     {
@@ -529,7 +525,7 @@ class Dice
         //   $rule['instanceOf']
         if (
             $instanceOf && !empty($this->getRule($instanceOf)['shared']) &&
-                (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
+            (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
         ) {
             $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $instanceOf) {
                 if (!empty($dice->instances[$instanceOf])) {

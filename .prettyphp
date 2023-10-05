@@ -1,0 +1,9 @@
+{
+    "src": [
+        "src",
+        "tests"
+    ],
+    "enable": [
+        "align-data"
+    ]
+}

@@ -6,8 +6,5 @@ use RuntimeException;
 
 /**
  * Thrown if Dice can't instantiate a class
- *
  */
-class DiceException extends RuntimeException
-{
-}
+class DiceException extends RuntimeException {}
