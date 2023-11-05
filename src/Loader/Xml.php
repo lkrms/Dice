@@ -14,12 +14,13 @@ class Xml
 {
     private function getComponent(\SimpleXmlElement $element, $forceInstance = false)
     {
-        if ($forceInstance)
+        if ($forceInstance) {
             return [\Dice\Dice::INSTANCE => (string) $element];
-        else if ($element->instance)
+        } elseif ($element->instance) {
             return [\Dice\Dice::INSTANCE => (string) $element->instance];
-        else
+        } else {
             return (string) $element;
+        }
     }
 
     private function loadV1(\SimpleXmlElement $xml, \Dice\Dice $dice)
@@ -29,34 +30,47 @@ class Xml
         foreach ($xml as $key => $value) {
             $rule = $dice->getRule((string) $value->name);
 
-            if (isset($value->shared))
+            if (isset($value->shared)) {
                 $rule['shared'] = ((string) $value->shared === 'true');
+            }
 
-            if (isset($value->inherit))
+            if (isset($value->inherit)) {
                 $rule['inherit'] = ($value->inherit == 'false') ? false : true;
+            }
             if ($value->call) {
                 foreach ($value->call as $name => $call) {
                     $callArgs = [];
-                    if ($call->params)
-                        foreach ($call->params->children() as $key => $param)
+                    if ($call->params) {
+                        foreach ($call->params->children() as $key => $param) {
                             $callArgs[] = $this->getComponent($param);
+                        }
+                    }
                     $rule['call'][] = [(string) $call->method, $callArgs];
                 }
             }
-            if ($value->instanceOf)
+            if ($value->instanceOf) {
                 $rule['instanceOf'] = (string) $value->instanceOf;
-            if ($value->newInstances)
-                foreach ($value->newInstances as $ni)
+            }
+            if ($value->newInstances) {
+                foreach ($value->newInstances as $ni) {
                     $rule['newInstances'][] = (string) $ni;
-            if ($value->substitutions)
-                foreach ($value->substitutions as $use)
+                }
+            }
+            if ($value->substitutions) {
+                foreach ($value->substitutions as $use) {
                     $rule['substitutions'][(string) $use->as] = $this->getComponent($use->use, true);
-            if ($value->constructParams)
-                foreach ($value->constructParams->children() as $child)
+                }
+            }
+            if ($value->constructParams) {
+                foreach ($value->constructParams->children() as $child) {
                     $rule['constructParams'][] = $this->getComponent($child);
-            if ($value->shareInstances)
-                foreach ($value->shareInstances as $share)
+                }
+            }
+            if ($value->shareInstances) {
+                foreach ($value->shareInstances as $share) {
                     $rule['shareInstances'][] = $this->getComponent($share);
+                }
+            }
             $rules[$value['name']] = $rule;
             $dice->addRule((string) $value->name, $rule);
         }
@@ -73,26 +87,36 @@ class Xml
             if ($value->call) {
                 foreach ($value->call as $name => $call) {
                     $callArgs = [];
-                    foreach ($call->children() as $key => $param)
+                    foreach ($call->children() as $key => $param) {
                         $callArgs[] = $this->getComponent($param);
+                    }
                     $rule['call'][] = [(string) $call['method'], $callArgs];
                 }
             }
-            if (isset($value['inherit']))
+            if (isset($value['inherit'])) {
                 $rule['inherit'] = ($value['inherit'] == 'false') ? false : true;
-            if ($value['instanceOf'])
+            }
+            if ($value['instanceOf']) {
                 $rule['instanceOf'] = (string) $value['instanceOf'];
-            if (isset($value['shared']))
+            }
+            if (isset($value['shared'])) {
                 $rule['shared'] = ((string) $value['shared'] === 'true');
-            if ($value->constructParams)
-                foreach ($value->constructParams->children() as $child)
+            }
+            if ($value->constructParams) {
+                foreach ($value->constructParams->children() as $child) {
                     $rule['constructParams'][] = $this->getComponent($child);
-            if ($value->substitute)
-                foreach ($value->substitute as $use)
+                }
+            }
+            if ($value->substitute) {
+                foreach ($value->substitute as $use) {
                     $rule['substitutions'][(string) $use['as']] = $this->getComponent($use['use'], true);
-            if ($value->shareInstances)
-                foreach ($value->shareInstances->children() as $share)
+                }
+            }
+            if ($value->shareInstances) {
+                foreach ($value->shareInstances->children() as $share) {
                     $rule['shareInstances'][] = $this->getComponent($share);
+                }
+            }
             $rules[$value['name']] = $rule;
             $dice->addRule((string) $value['name'], $rule);
         }
@@ -105,17 +129,20 @@ class Xml
             trigger_error('Deprecated: The XML loader is being removed in the next version of Dice please use $xmlLoader->convert(\'' . $xml . "', 'path/to/rules.json'); to convert the rules to JSON format", E_USER_WARNING);
         }
 
-        if ($dice === null)
+        if ($dice === null) {
             $dice = new \Dice\Dice;
-        if (!($xml instanceof \SimpleXmlElement))
+        }
+        if (!($xml instanceof \SimpleXmlElement)) {
             $xml = simplexml_load_file($xml);
+        }
         $ns     = $xml->getNamespaces();
         $nsName = (isset($ns[''])) ? $ns[''] : '';
 
-        if ($nsName == 'https://r.je/dice/2.0')
+        if ($nsName == 'https://r.je/dice/2.0') {
             return $this->loadV2($xml, $dice);
-        else
+        } else {
             return $this->loadV1($xml, $dice);
+        }
     }
 
     public function convert($xml, $outputJson)
