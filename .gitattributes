@@ -1,0 +1,7 @@
+/.git-blame-ignore-revs export-ignore
+/.gitattributes export-ignore
+/.github export-ignore
+/.gitignore export-ignore
+/.prettyphp export-ignore
+/phpunit* export-ignore
+/tests export-ignore
