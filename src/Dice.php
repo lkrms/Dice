@@ -682,7 +682,13 @@ class Dice
     {
         // Cache some information about the parameter in $paramInfo so (slow) reflection isn't needed every time
         $paramInfo = [];
+        $skipAfter = -1;
+        $index     = -1;
         foreach ($method->getParameters() as $param) {
+            $index++;
+            if (!$param->isOptional()) {
+                $skipAfter = $index;
+            }
             $type        = $param->getType();
             $class       = $type instanceof \ReflectionNamedType && !$type->isBuiltIn() ? $type->getName() : null;
             $byRef       = $param->isPassedByReference();
@@ -690,7 +696,7 @@ class Dice
         }
 
         // Return a closure that uses the cached information to generate the arguments for the method
-        return static function (Dice $dice, array $args, array &$share = []) use ($paramInfo, $rule) {
+        return static function (Dice $dice, array $args, array &$share = []) use ($paramInfo, $skipAfter, $rule) {
             // If the rule has construtParams set, construct any classes reference and use them as $args
             if (isset($rule['constructParams'])) {
                 $args = array_merge($args, $dice->expand($rule['constructParams'], $share));
@@ -700,7 +706,12 @@ class Dice
             $parameters = [];
 
             // Fnd a value for each method argument
-            foreach ($paramInfo as list($class, $byRef, $param, $sub)) {
+            foreach ($paramInfo as $index => list($class, $byRef, $param, $sub)) {
+                // Bail out if there are no more $args to assign and no
+                // mandatory parameters to resolve
+                if (!$args && $index > $skipAfter) {
+                    return $parameters;
+                }
                 // Loop through $args and see whether or not each value can match the current parameter based on type
                 // hint
                 if ($args && $byRef && ($match = &$dice->matchParamByRef($param, $class, $args)) !== false) {
