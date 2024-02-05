@@ -130,6 +130,29 @@ class Dice
     }
 
     /**
+     * Add a substitution to the default rule
+     *
+     * @param mixed $substitution
+     * @return Dice A new instance with `$name` mapped to `$substitution` in the
+     * default rule's `'substitutions'` array.
+     */
+    public function addSubstitution(string $name, $substitution): self
+    {
+        $_rule                                     = $this->getDefaultRule();
+        $rule                                      = $_rule;
+        $rule['substitutions'][$name]              = $substitution;
+        $rule['substitutions'][ltrim($name, '\\')] = $substitution;
+
+        return $this->callMutable(
+            static function (Dice $dice) use ($name, $rule) {
+                $dice->rules['*'] = $rule;
+
+                return self::flush($dice, $name);
+            }
+        );
+    }
+
+    /**
      * Provide an existing shared instance for a class or named instance
      *
      * @return Dice A new instance that resolves `$name` to `$instance`.
@@ -524,7 +547,8 @@ class Dice
         // - creates an object normally and makes it the shared instance of
         //   $rule['instanceOf']
         if (
-            $instanceOf && !empty($this->getRule($instanceOf)['shared']) &&
+            $instanceOf &&
+            !empty($this->getRule($instanceOf)['shared']) &&
             (!array_key_exists('inherit', $rule) || $rule['inherit'] === true)
         ) {
             $closure = static function (Dice $dice, array $args, array &$share) use ($closure, $instanceOf) {
