@@ -8,6 +8,8 @@
  * @version 3.0
  */
 
+use Dice\DiceException;
+
 class BasicTest extends DiceTest
 {
     public function testCreate()
@@ -19,12 +21,25 @@ class BasicTest extends DiceTest
 
     public function testCreateInvalid()
     {
-        // "can't expect default exception". Not sure why.
-        $this->expectException('ErrorException');
+        $this->expectException(DiceException::class);
+        $this->expectExceptionMessage('Class does not exist: SomeClassThatDoesNotExist');
         try {
             $this->dice->create('SomeClassThatDoesNotExist');
-        } catch (Exception $e) {
-            throw new ErrorException('Error occurred');
+        } catch (DiceException $ex) {
+            $this->assertSame('SomeClassThatDoesNotExist', $ex->getClass());
+            throw $ex;
+        }
+    }
+
+    public function testCreateInterface()
+    {
+        $this->expectException(DiceException::class);
+        $this->expectExceptionMessage('Cannot instantiate interface: interfaceTest');
+        try {
+            $this->dice->create(interfaceTest::class);
+        } catch (DiceException $ex) {
+            $this->assertSame(interfaceTest::class, $ex->getClass());
+            throw $ex;
         }
     }
 

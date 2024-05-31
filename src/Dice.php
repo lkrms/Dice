@@ -385,7 +385,7 @@ class Dice
         // fails to instantiate an interface
         if (interface_exists($instanceOf)) {
             return static function () use ($instanceOf) {
-                throw new DiceException(sprintf('Cannot instantiate interface: %s', $instanceOf));
+                throw new DiceException(sprintf('Cannot instantiate interface: %s', $instanceOf), $instanceOf);
             };
         }
 
@@ -393,7 +393,7 @@ class Dice
         // requested, instead of a ReflectionException now
         if (!class_exists($instanceOf)) {
             return static function () use ($instanceOf) {
-                throw new DiceException(sprintf('Class does not exist: %s', $instanceOf));
+                throw new DiceException(sprintf('Class does not exist: %s', $instanceOf), $instanceOf);
             };
         }
         // Reflect the class and constructor (this should only need to be done
