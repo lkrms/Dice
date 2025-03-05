@@ -416,7 +416,12 @@ class Dice
                 return $maybeShare($dice, $instance, $share);
             };
         }
-        if ($params) {
+        if (isset($rule['callback'])) {
+            $callback = $rule['callback'];
+            $closure  = static function (Dice $dice, array $args, array &$share) use ($maybeShare, $callback) {
+                return $maybeShare($dice, $callback($dice, $args), $share);
+            };
+        } elseif ($params) {
             // Internal classes don't have circular dependencies and may not
             // work with newInstanceWithoutConstructor(), so they are always
             // constructed normally
