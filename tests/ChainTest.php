@@ -14,7 +14,7 @@ class ChainTest extends DiceTest
         $dice = $this->dice->addRules([
             '$someClass' => [
                 'instanceOf' => 'Factory',
-                'call' => [
+                'call'       => [
                     ['get', [], \Dice\Dice::CHAIN_CALL]
                 ]
             ]
@@ -30,8 +30,8 @@ class ChainTest extends DiceTest
         $dice = $this->dice->addRules([
             '$someClass' => [
                 'instanceOf' => 'Factory',
-                'call' => [
-                    ['get',    [], \Dice\Dice::CHAIN_CALL],
+                'call'       => [
+                    ['get', [], \Dice\Dice::CHAIN_CALL],
                     ['getBar', [], \Dice\Dice::CHAIN_CALL]
                 ]
             ]
@@ -46,9 +46,9 @@ class ChainTest extends DiceTest
     {
         $dice = $this->dice->addRules([
             '$someClass' => [
-                'shared' => true,
+                'shared'     => true,
                 'instanceOf' => 'Factory',
-                'call' => [
+                'call'       => [
                     ['get', [], \Dice\Dice::CHAIN_CALL]
                 ]
             ]
@@ -64,7 +64,7 @@ class ChainTest extends DiceTest
         $dice = $this->dice->addRules([
             'FactoryDependency' => [
                 'instanceOf' => 'Factory',
-                'call' => [
+                'call'       => [
                     ['get', [], \Dice\Dice::CHAIN_CALL]
                 ]
             ]
@@ -79,9 +79,9 @@ class ChainTest extends DiceTest
     {
         $dice = $this->dice->addRules([
             'FactoryDependency' => [
-                'shared' => true,
+                'shared'     => true,
                 'instanceOf' => 'Factory',
-                'call' => [
+                'call'       => [
                     ['get', [], \Dice\Dice::CHAIN_CALL]
                 ]
             ]

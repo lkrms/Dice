@@ -4,6 +4,9 @@
         "tests"
     ],
     "enable": [
-        "align-data"
-    ]
+        "align-data",
+        "semi-strict-expressions",
+        "strict-lists"
+    ],
+    "operatorsFirst": true
 }

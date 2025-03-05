@@ -36,7 +36,6 @@ class TestCall3
     public function callMe(A $a)
     {
         $this->a = $a;
-
         return 'callMe called';
     }
 }

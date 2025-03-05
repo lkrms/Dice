@@ -215,12 +215,14 @@ class BasicTest extends DiceTest
         // write to the global $_GET variable
         $_GET['foo'] = 'bar';
 
-        $dice = $this->dice->addRule('CheckConstructorArgs',
+        $dice = $this->dice->addRule(
+            'CheckConstructorArgs',
             [
                 'constructParams' => [
                     [\Dice\Dice::GLOBAL => '_GET']
                 ]
-            ]);
+            ]
+        );
 
         $obj = $dice->create('CheckConstructorArgs');
 
@@ -229,12 +231,14 @@ class BasicTest extends DiceTest
 
     public function testPassConstantString()
     {
-        $dice = $this->dice->addRule('CheckConstructorArgs',
+        $dice = $this->dice->addRule(
+            'CheckConstructorArgs',
             [
                 'constructParams' => [
                     [\Dice\Dice::CONSTANT => '\PDO::FETCH_ASSOC']
                 ]
-            ]);
+            ]
+        );
 
         $obj = $dice->create('CheckConstructorArgs');
 
@@ -252,12 +256,14 @@ class BasicTest extends DiceTest
 
     public function testPassSelf()
     {
-        $dice = $this->dice->addRule('CheckConstructorArgs',
+        $dice = $this->dice->addRule(
+            'CheckConstructorArgs',
             [
                 'constructParams' => [
                     [\Dice\Dice::INSTANCE => \Dice\Dice::SELF]
                 ]
-            ]);
+            ]
+        );
 
         $obj = $dice->create('CheckConstructorArgs');
 

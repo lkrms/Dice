@@ -109,7 +109,7 @@ class NamedInstancesTest extends DiceTest
 
     public function testNamedInstanceCallWithInheritance()
     {
-        $rule1 = [];
+        $rule1         = [];
         $rule1['call'] = [
             ['callMe', [1, 3]],
             ['callMe', [3, 4]]
@@ -128,7 +128,7 @@ class NamedInstancesTest extends DiceTest
 
     public function testNamedInstanceCallWithoutInheritance()
     {
-        $rule1 = [];
+        $rule1         = [];
         $rule1['call'] = [
             ['callMe', [1, 3]],
             ['callMe', [3, 4]]

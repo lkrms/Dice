@@ -11,7 +11,7 @@ class SubstitutionsTest extends DiceTest
 {
     public function testNoMoreAssign()
     {
-        $rule = [];
+        $rule                           = [];
         $rule['substitutions']['Bar77'] = [\Dice\Dice::INSTANCE => function () {
             return Baz77::create();
         }];
@@ -57,8 +57,8 @@ class SubstitutionsTest extends DiceTest
 
     public function testSubstitutionCallback()
     {
-        $rule = [];
-        $injection = $this->dice;
+        $rule                       = [];
+        $injection                  = $this->dice;
         $rule['substitutions']['B'] = [\Dice\Dice::INSTANCE => function () use ($injection) {
             return $injection->create('ExtendedB');
         }];
